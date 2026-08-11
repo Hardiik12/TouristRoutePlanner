@@ -700,8 +700,41 @@ class RoutePlannerCoreUI:
     def _set_status(self, msg, color="#6EE7B7"):
         self.status_lbl.config(text=f"● {msg}", fg=color)
 
+    def _validate_planning_state(self):
+        """
+        Validates start, goal, and boundary conditions.
+        Returns (True, None) if valid, or (False, error_message) if invalid.
+        """
+        start = self.env.start_coordinate
+        goal = self.env.goal_coordinate
+
+        # 1. Bounds check
+        for r, c in (start, goal):
+            if not (0 <= r < self.env.total_rows and 0 <= c < self.env.total_cols):
+                return False, f"Coordinates ({r},{c}) out of bounds!"
+
+        # 2. Start == Goal check
+        if start == goal:
+            return False, "Already at destination!"
+
+        # 3. Obstacle checks
+        if not self.csp.assess_cell_viability(start):
+            return False, "Start blocked by obstacle!"
+
+        if not self.csp.assess_cell_viability(goal):
+            return False, "Goal blocked by obstacle!"
+
+        return True, None
+
     def _run(self, algo_id):
         if self._running: return
+
+        valid, err_msg = self._validate_planning_state()
+        if not valid:
+            self._set_status(err_msg, C["goal"])
+            self.csp_status.config(text=f"⚠ {err_msg}", fg=C["goal"])
+            return
+
         self._running = True
         self._cancel_anims()
         self._render_grid()

@@ -176,3 +176,41 @@ class TestSearchAlgorithms(unittest.TestCase):
         self.assertEqual(len(bfs_path), len(ucs_path))
         self.assertEqual(len(astar_path), len(ucs_path))
         self.assertEqual(len(bfs_path), 11) # 10 steps (start to goal is 5+5=10 transitions)
+
+    def test_gui_validation_checks(self):
+        import tkinter as tk
+        from gui import RoutePlannerCoreUI
+
+        try:
+            root = tk.Tk()
+            root.withdraw() # Hide the window
+        except (tk.TclError, RuntimeError):
+            self.skipTest("No GUI environment available")
+            return
+
+        try:
+            ui = RoutePlannerCoreUI(root)
+
+            # Test 1: Start equals Goal
+            ui.env.reconfigure_start_state(2, 2)
+            ui.env.reconfigure_goal_state(2, 2)
+            valid, msg = ui._validate_planning_state()
+            self.assertFalse(valid)
+            self.assertEqual(msg, "Already at destination!")
+
+            # Test 2: Start blocked by obstacle
+            ui.env.reconfigure_start_state(0, 0)
+            ui.env.reconfigure_goal_state(0, 2)
+            ui.csp.register_impassable_obstacle(0, 0)
+            valid, msg = ui._validate_planning_state()
+            self.assertFalse(valid)
+            self.assertEqual(msg, "Start blocked by obstacle!")
+
+            # Clear obstacles and verify valid
+            ui.csp.erase_all_constraints()
+            valid, msg = ui._validate_planning_state()
+            self.assertTrue(valid)
+        finally:
+            root.destroy()
+
+
