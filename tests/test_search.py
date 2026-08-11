@@ -213,4 +213,45 @@ class TestSearchAlgorithms(unittest.TestCase):
         finally:
             root.destroy()
 
+    def test_gui_animation_speed_delay(self):
+        import tkinter as tk
+        from gui import RoutePlannerCoreUI
+
+        try:
+            root = tk.Tk()
+            root.withdraw()
+        except (tk.TclError, RuntimeError):
+            self.skipTest("No GUI environment available")
+            return
+
+        try:
+            ui = RoutePlannerCoreUI(root)
+
+            # Test default / Normal delay values
+            ui.speed_var.set("Normal")
+            self.assertEqual(ui._get_animation_delay("explore"), 6)
+            self.assertEqual(ui._get_animation_delay("path"), 28)
+            self.assertEqual(ui._get_animation_delay("robot"), 40)
+
+            # Test Instant delay values (0)
+            ui.speed_var.set("Instant")
+            self.assertEqual(ui._get_animation_delay("explore"), 0)
+            self.assertEqual(ui._get_animation_delay("path"), 0)
+            self.assertEqual(ui._get_animation_delay("robot"), 0)
+
+            # Test Fast delay values (0.25x multiplier)
+            ui.speed_var.set("Fast")
+            self.assertEqual(ui._get_animation_delay("explore"), int(6 * 0.25))
+            self.assertEqual(ui._get_animation_delay("path"), int(28 * 0.25))
+            self.assertEqual(ui._get_animation_delay("robot"), int(40 * 0.25))
+
+            # Test Slow delay values (3.0x multiplier)
+            ui.speed_var.set("Slow")
+            self.assertEqual(ui._get_animation_delay("explore"), 6 * 3)
+            self.assertEqual(ui._get_animation_delay("path"), 28 * 3)
+            self.assertEqual(ui._get_animation_delay("robot"), 40 * 3)
+        finally:
+            root.destroy()
+
+
 

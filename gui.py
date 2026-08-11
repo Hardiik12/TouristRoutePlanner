@@ -392,6 +392,16 @@ class RoutePlannerCoreUI:
                            cmd=lambda a=aid: self._run(a), w=188, h=32)
             btn.pack(side=tk.LEFT, padx=4)
 
+        # Speed selection frame
+        speed_f = tk.Frame(c, bg=C["card"])
+        speed_f.pack(fill=tk.X, pady=(4, 2))
+        tk.Label(speed_f, text="⚡ Animation Speed:", bg=C["card"], fg=C["txt"],
+                 font=("Helvetica", 8, "bold")).pack(side=tk.LEFT, padx=(4, 6))
+        self.speed_var = tk.StringVar(value="Normal")
+        self.speed_cb = ttk.Combobox(speed_f, textvariable=self.speed_var, state="readonly", font=("Helvetica", 8), width=10)
+        self.speed_cb['values'] = ("Instant", "Fast", "Normal", "Slow")
+        self.speed_cb.pack(side=tk.LEFT)
+
         tk.Frame(c, bg=C["border"], height=1).pack(fill=tk.X, pady=(6, 2))
         pill_btn(c, "✕  Clear Grid", C["m4"],
                  cmd=self._clear, w=388, h=30).pack(pady=2)
@@ -828,15 +838,53 @@ class RoutePlannerCoreUI:
 
     # ── Animation steps ────────────────────────────────────────────────────────
 
+    def _get_animation_delay(self, anim_type):
+        """
+        Returns the appropriate milliseconds delay based on selected speed.
+        anim_type: 'explore', 'path', or 'robot'
+        """
+        if not hasattr(self, 'speed_var'):
+            base_delays = {"explore": 6, "path": 28, "robot": 40}
+            return base_delays.get(anim_type, 10)
+
+        speed = self.speed_var.get()
+        if speed == "Instant":
+            return 0
+
+        # Speed factor multipliers:
+        # Fast: 0.25x of normal
+        # Normal: 1.0x of normal
+        # Slow: 3.0x of normal
+        factors = {
+            "Fast": 0.25,
+            "Normal": 1.0,
+            "Slow": 3.0
+        }
+        factor = factors.get(speed, 1.0)
+
+        base_delays = {
+            "explore": 6,
+            "path": 28,
+            "robot": 40
+        }
+        return int(base_delays.get(anim_type, 10) * factor)
+
     def _anim_explored(self, explored, path, algo_id):
         skip = {self.env.start_coordinate, self.env.goal_coordinate}
         nodes = [n for n in explored if n not in skip]
+
+        delay = self._get_animation_delay("explore")
+        if delay == 0:
+            for node in nodes:
+                self._paint_cell(node, C["explored"])
+            self._anim_path(path, algo_id)
+            return
 
         def flash(i=0):
             if i < len(nodes):
                 self._paint_cell(nodes[i], C["explored"])
                 self._anim_jobs.append(
-                    self.root.after(ANIM_EXPLORE, lambda: flash(i + 1)))
+                    self.root.after(delay, lambda: flash(i + 1)))
             else:
                 self._anim_jobs.append(
                     self.root.after(100, lambda: self._anim_path(path, algo_id)))
@@ -846,11 +894,22 @@ class RoutePlannerCoreUI:
         skip = {self.env.start_coordinate, self.env.goal_coordinate}
         cells = [n for n in path if n not in skip]
 
+        delay = self._get_animation_delay("path")
+        if delay == 0:
+            for cell in cells:
+                self._paint_cell(cell, C["path"])
+            self._stamp_icon(self.env.start_coordinate, "S", C["white"])
+            self._stamp_icon(self.env.goal_coordinate,  "G", C["white"])
+            if path:
+                self._paint_robot(path[-1])
+            self._finish(algo_id, bool(path))
+            return
+
         def draw(i=0):
             if i < len(cells):
                 self._paint_cell(cells[i], C["path"])
                 self._anim_jobs.append(
-                    self.root.after(ANIM_PATH, lambda: draw(i + 1)))
+                    self.root.after(delay, lambda: draw(i + 1)))
             else:
                 self._stamp_icon(self.env.start_coordinate, "S", C["white"])
                 self._stamp_icon(self.env.goal_coordinate,  "G", C["white"])
@@ -862,12 +921,13 @@ class RoutePlannerCoreUI:
         draw()
 
     def _anim_robot(self, path, algo_id):
+        delay = self._get_animation_delay("robot")
         def move(i=0):
             self.display_canvas.delete("robot")
             if i < len(path):
                 self._paint_robot(path[i])
                 self._anim_jobs.append(
-                    self.root.after(ANIM_ROBOT, lambda: move(i + 1)))
+                    self.root.after(delay, lambda: move(i + 1)))
             else:
                 self.display_canvas.delete("robot")
                 self._finish(algo_id, True)
