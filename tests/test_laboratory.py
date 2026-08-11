@@ -51,3 +51,34 @@ class TestAlgorithmLaboratory(unittest.TestCase):
             res = self.ui.comparison_results[aid]
             self.assertEqual(res["status"], "No Path")
             self.assertEqual(res["cost"], "-")
+
+    def test_export_analysis_file_writing(self):
+        import os
+        # Ensure clear state
+        self.ui.env.reconfigure_start_state(0, 0)
+        self.ui.env.reconfigure_goal_state(2, 2)
+        self.ui.csp.erase_all_constraints()
+
+        # Clean up target file if it already exists
+        if os.path.exists("route_analysis.txt"):
+            os.remove("route_analysis.txt")
+
+        # Run export
+        self.ui._export_analysis()
+
+        # Verify file is generated
+        self.assertTrue(os.path.exists("route_analysis.txt"))
+
+        # Verify content tags
+        with open("route_analysis.txt", "r", encoding="utf-8") as f:
+            content = f.read()
+            self.assertIn("AI TOURIST ROUTE PLANNER - ANALYSIS REPORT", content)
+            self.assertIn("Start Coordinate:", content)
+            self.assertIn("Goal Coordinate:", content)
+            self.assertIn("1. PERFORMANCE COMPARISON MATRIX", content)
+            self.assertIn("2. DYNAMIC ENVIRONMENT CONSTRAINTS", content)
+            self.assertIn("3. EXPLAINABLE AI (XAI) DECISION TRACE", content)
+
+        # Cleanup after test
+        os.remove("route_analysis.txt")
+

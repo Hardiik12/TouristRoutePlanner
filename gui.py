@@ -552,6 +552,8 @@ class RoutePlannerCoreUI:
 
         pill_btn(btn_f, "🧪 Run Comparison Analysis", C["m1"],
                  cmd=self._run_lab_comparison, w=388, h=30).pack(pady=2)
+        pill_btn(btn_f, "💾 Export Comparative Analysis", C["m2"],
+                 cmd=self._export_analysis, w=388, h=30).pack(pady=2)
 
         # Tabular structure using a Frame with labels
         self.lab_table_frame = tk.Frame(c, bg=C["border"])
@@ -650,6 +652,65 @@ class RoutePlannerCoreUI:
                 }
 
         self._set_status("Lab analysis complete ✓", "#6EE7B7")
+
+    def _export_analysis(self):
+        """
+        Exports the current planning scenario, comparative laboratory metrics,
+        and XAI trace to a portfolio-ready text file 'route_analysis.txt'.
+        """
+        # Run comparison if it hasn't been run yet
+        if not hasattr(self, 'comparison_results') or not self.comparison_results:
+            self._run_lab_comparison()
+            if not hasattr(self, 'comparison_results') or not self.comparison_results:
+                # Validation failed in _run_lab_comparison
+                return
+
+        try:
+            with open("route_analysis.txt", "w", encoding="utf-8") as f:
+                f.write("====================================================\n")
+                f.write("      AI TOURIST ROUTE PLANNER - ANALYSIS REPORT    \n")
+                f.write("====================================================\n\n")
+
+                start = self.env.start_coordinate
+                goal = self.env.goal_coordinate
+                f.write(f"Start Coordinate:       {start}\n")
+                f.write(f"Goal Coordinate:        {goal}\n")
+                f.write(f"Grid Configuration:     {self.env.total_rows}x{self.env.total_cols} Grid\n\n")
+
+                f.write("----------------------------------------------------\n")
+                f.write(" 1. PERFORMANCE COMPARISON MATRIX                   \n")
+                f.write("----------------------------------------------------\n")
+                f.write(f"{'Algorithm':<12} | {'Cost':<8} | {'Nodes Exp':<10} | {'Time (ms)':<10} | {'Status':<10}\n")
+                f.write("-" * 55 + "\n")
+
+                for aid in ["BFS", "DFS", "UCS", "A*"]:
+                    res = self.comparison_results[aid]
+                    f.write(f"{aid:<12} | {res['cost']:<8} | {res['nodes']:<10} | {res['time']:<10} | {res['status']:<10}\n")
+                f.write("\n")
+
+                f.write("----------------------------------------------------\n")
+                f.write(" 2. DYNAMIC ENVIRONMENT CONSTRAINTS                 \n")
+                f.write("----------------------------------------------------\n")
+                f.write(f"Budget Limit:           ₹ {self.csp.maximum_financial_budget}\n")
+                f.write(f"Travel Time Limit:      {self.csp.maximum_time_limit} min\n")
+
+                # Count obstacles and traffic zones
+                obs_count = sum(1 for r in range(self.env.total_rows) for c in range(self.env.total_cols) if not self.csp.assess_cell_viability((r,c)))
+                f.write(f"Active Obstacles:       {obs_count}\n\n")
+
+                f.write("----------------------------------------------------\n")
+                f.write(" 3. EXPLAINABLE AI (XAI) DECISION TRACE             \n")
+                f.write("----------------------------------------------------\n")
+                xai_msg = self.xai_text.get("1.0", tk.END).strip()
+                f.write(f"{xai_msg}\n\n")
+
+                f.write("====================================================\n")
+                f.write("Report Generated Successfully.\n")
+                f.write("====================================================\n")
+
+            self._set_status("Analysis exported to route_analysis.txt ✓", "#6EE7B7")
+        except Exception as e:
+            self._set_status(f"Export failed: {str(e)}", C["goal"])
 
     # ── Grid Rendering ─────────────────────────────────────────────────────────
 
