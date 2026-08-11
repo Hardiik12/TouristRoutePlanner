@@ -370,6 +370,7 @@ class RoutePlannerCoreUI:
         self._build_module5(mid)
 
         self._build_module6(right)
+        self._build_lab(right)
 
     # MODULE 2 – Search Algorithms ─────────────────────────────────────────────
     def _build_module2(self, parent):
@@ -541,6 +542,114 @@ class RoutePlannerCoreUI:
             "  • How CSP constraints filtered options\n"
             "  • Bayesian uncertainty impact on route cost")
         self.xai_text.config(state=tk.DISABLED)
+
+    def _build_lab(self, parent):
+        c = section_card(parent, "🧪 Algorithm Laboratory  (Performance Comparison)", C["m1"], pady=4)
+
+        # Comparison triggers
+        btn_f = tk.Frame(c, bg=C["card"])
+        btn_f.pack(fill=tk.X, pady=(2, 6))
+
+        pill_btn(btn_f, "🧪 Run Comparison Analysis", C["m1"],
+                 cmd=self._run_lab_comparison, w=388, h=30).pack(pady=2)
+
+        # Tabular structure using a Frame with labels
+        self.lab_table_frame = tk.Frame(c, bg=C["border"])
+        self.lab_table_frame.pack(fill=tk.X, pady=2)
+
+        # Configure columns
+        self.lab_table_frame.columnconfigure(0, weight=2) # Algorithm name
+        self.lab_table_frame.columnconfigure(1, weight=1) # Path Cost
+        self.lab_table_frame.columnconfigure(2, weight=1) # Nodes Exp
+        self.lab_table_frame.columnconfigure(3, weight=1) # Time (ms)
+        self.lab_table_frame.columnconfigure(4, weight=1) # Status
+
+        # Headers
+        headers = ["Algorithm", "Cost", "Nodes", "Time", "Status"]
+        for col_idx, text in enumerate(headers):
+            lbl = tk.Label(self.lab_table_frame, text=text, bg=C["card"], fg=C["txt"],
+                           font=("Helvetica", 8, "bold"), bd=1, relief=tk.FLAT, pady=4)
+            lbl.grid(row=0, column=col_idx, sticky="ew", padx=1, pady=1)
+
+        # Row entries placeholders
+        self.lab_rows = {}
+        algos = [("BFS", "BFS"), ("DFS", "DFS"), ("UCS", "UCS"), ("A*", "A*")]
+        for row_idx, (name, aid) in enumerate(algos, start=1):
+            row_widgets = []
+            # Name label
+            lbl_name = tk.Label(self.lab_table_frame, text=name, bg=C["bg"], fg=C["txt"],
+                                font=("Helvetica", 8, "bold"), anchor="w", padx=6, pady=4)
+            lbl_name.grid(row=row_idx, column=0, sticky="ew", padx=1, pady=1)
+            row_widgets.append(lbl_name)
+
+            # Metric labels: Cost, Nodes, Time, Status
+            for col_idx in range(1, 5):
+                lbl_metric = tk.Label(self.lab_table_frame, text="-", bg=C["bg"], fg=C["txt"],
+                                      font=("Helvetica", 8), anchor="center", pady=4)
+                lbl_metric.grid(row=row_idx, column=col_idx, sticky="ew", padx=1, pady=1)
+                row_widgets.append(lbl_metric)
+
+            self.lab_rows[aid] = row_widgets
+
+    def _run_lab_comparison(self):
+        """
+        Runs all four search algorithms sequentially on the current grid
+        without animation, collects metrics, and displays them in the table.
+        """
+        valid, err_msg = self._validate_planning_state()
+        if not valid:
+            self._set_status(f"Lab: {err_msg}", C["goal"])
+            return
+
+        self._set_status("Running Lab Comparison...", "#FCD34D")
+        self.root.update_idletasks()
+
+        vf = self.csp.assess_cell_viability
+        cf = self.uncertainty.calculate_dynamic_step_cost
+
+        # Save comparison data for export
+        self.comparison_results = {}
+
+        algos = [
+            ("BFS", search.execute_breadth_first_search),
+            ("DFS", search.execute_depth_first_search),
+            ("UCS", search.execute_uniform_cost_search),
+            ("A*", search.execute_astar_search)
+        ]
+
+        for aid, search_fn in algos:
+            t0 = time.perf_counter()
+            path, explored = search_fn(self.env, vf, cf)
+            elapsed = (time.perf_counter() - t0) * 1000  # ms
+
+            cost = self.uncertainty.calculate_accumulated_trajectory_cost(path)
+
+            row_widgets = self.lab_rows[aid]
+
+            if path:
+                row_widgets[1].config(text=f"{cost:.1f}")
+                row_widgets[2].config(text=str(len(explored)))
+                row_widgets[3].config(text=f"{elapsed:.2f}ms")
+                row_widgets[4].config(text="✓ Found", fg="#6EE7B7")
+                self.comparison_results[aid] = {
+                    "cost": f"{cost:.1f}",
+                    "nodes": len(explored),
+                    "time": f"{elapsed:.2f}ms",
+                    "status": "Found"
+                }
+            else:
+                row_widgets[1].config(text="-")
+                row_widgets[2].config(text=str(len(explored)))
+                row_widgets[3].config(text=f"{elapsed:.2f}ms")
+                row_widgets[4].config(text="✗ No Path", fg=C["goal"])
+                self.comparison_results[aid] = {
+                    "cost": "-",
+                    "nodes": len(explored),
+                    "time": f"{elapsed:.2f}ms",
+                    "status": "No Path"
+                }
+
+        self._set_status("Lab analysis complete ✓", "#6EE7B7")
 
     # ── Grid Rendering ─────────────────────────────────────────────────────────
 
