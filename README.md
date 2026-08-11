@@ -25,6 +25,34 @@ This project serves as an educational and portfolio-ready demonstration of integ
 
 ---
 
+## Interactive Environment Builder
+- **Mode Toolbar**: Select modes to draw obstacles, set the start node, place the destination node, or paint high-traffic zones directly onto the grid.
+- **Dynamic Grid Update**: The environment immediately registers new grid blockages and updates candidate routes on subsequent searches.
+- **Robust Pre-Search Validation**: Verifies start and goal constraints before executing search queries. Automatically flags blocked start/goal placements or start-equals-goal states.
+
+## Algorithm Laboratory
+- **Compare All**: Sequentially runs BFS, DFS, UCS, and A* on the current grid environment configuration.
+- **Side-by-Side Comparison Matrix**: Compares actual path cost, path length (steps), total nodes expanded, execution time in milliseconds, and search success/failure.
+- **Non-destructive Evaluation**: Allows evaluation of all four algorithms under the exact same environment without resetting or changing obstacle layouts.
+
+## AI Decision Center
+- **Constraint Satisfaction**: Real-time forward-checking of dynamic budget limits and temporal caps against cumulative path properties.
+- **Bayesian Congestion Scaling**: Stochastic multipliers update dynamically based on dynamic priors.
+- **Minimax Lookahead**: Computes optimal detour options under adversarial traffic congestion states.
+
+## Explainable Route Planning
+- **Trace Reports**: Explains selected algorithm features, steps cost evaluations, CSP viability filters, and Bayesian weather multiplier impacts in natural language.
+- **Interactive Explanations**: XAI output updates in real-time on every route planning execution.
+
+## Performance Metrics
+- **Pruned Expansion Checks**: UCS and A* track stale entries to prevent duplicate node neighbor processing.
+- **Execution Timings**: Measured using high-precision timers (`time.perf_counter`) to record compute times down to sub-millisecond ranges.
+
+## Exporting Results
+- **Comparative Analysis Export**: Click "💾 Export Comparative Analysis" to write a formatted `route_analysis.txt` document summarizing grid configurations, performance matrices, dynamic constraints, and explainable AI traces.
+
+---
+
 ## AI Concepts
 
 ### State-Space Search
