@@ -150,9 +150,19 @@ TouristRoutePlanner/
 ---
 
 ## Screenshots
-*(Optional showcase images can be placed here)*
-- **Main Interface**: Dashboard showcasing grid overlay, module cards, and XAI panel.
-- **Path Search**: Animated route trace showing BFS vs A\* node expansions.
+*(Screenshots can be captured and stored in `docs/images/` for visualization)*
+
+### Main Interface
+*Dashboard showcasing grid overlay, module cards, and XAI panel.*
+<!-- ![Main Interface](docs/images/main-interface.png) -->
+
+### Route Planning & Search Visualization
+*Animated route trace showing BFS, DFS, UCS, and A\* node expansions.*
+<!-- ![Search Visualization](docs/images/search-visualization.png) -->
+
+### Explainable AI Reasoning
+*Explainability panel with natural language trace explanations.*
+<!-- ![XAI Explanation](docs/images/xai-explanation.png) -->
 
 ---
 
@@ -230,4 +240,4 @@ The test suite consists of **37 independent unit tests** validating:
 ---
 
 ## License
-*A licensing choice (e.g., MIT, Apache 2.0, or Proprietary) has not yet been finalized. Please consult repository maintainers before public distribution.*
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
