@@ -1,0 +1,2 @@
+# No external dependencies are required to run this project.
+# The application runs entirely on Python's built-in standard library (including tkinter).
