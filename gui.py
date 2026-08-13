@@ -50,6 +50,9 @@ C = {
     "txt":    "#E5E2E1",    # Light gray text
     "txt2":   "#A0A0B0",    # Muted secondary text
     "white":  "#FFFFFF",
+    "primary":   "#6366f1", # Electric Indigo
+    "secondary": "#22d3ee", # Cyan
+    "accent":    "#ec4899", # Magenta
 }
 
 CELL_PX = 22
@@ -126,14 +129,14 @@ def section_card(parent, title, accent, pady=6):
 
 
 def mini_stat(parent, label, accent, col, row):
-    """Tiny labelled value widget placed in a grid."""
-    f = tk.Frame(parent, bg=C["card"],
+    """Tactical telemetry tile with glowing value readout."""
+    f = tk.Frame(parent, bg="#141414",
                  highlightbackground=accent, highlightthickness=1)
     f.grid(row=row, column=col, padx=3, pady=3, sticky="ew")
-    tk.Label(f, text=label, bg=C["card"], fg=C["txt2"],
-             font=("Helvetica", 7)).pack(anchor="w", padx=6, pady=(4, 0))
-    val = tk.Label(f, text="—", bg=C["card"], fg=accent,
-                   font=("Helvetica", 12, "bold"))
+    tk.Label(f, text=label.upper(), bg="#141414", fg=C["txt2"],
+             font=("Helvetica", 7, "bold")).pack(anchor="w", padx=6, pady=(4, 0))
+    val = tk.Label(f, text="—", bg="#141414", fg=accent,
+                   font=("Courier", 11, "bold"))
     val.pack(anchor="w", padx=6, pady=(0, 4))
     return val
 
@@ -177,15 +180,26 @@ class RoutePlannerCoreUI:
     # ── Header ────────────────────────────────────────────────────────────────
 
     def _build_header(self):
-        hdr = tk.Frame(self.root, bg=C["header"])
+        hdr = tk.Frame(self.root, bg=C["header"], highlightbackground=C["border"], highlightthickness=1)
         hdr.pack(fill=tk.X)
-        tk.Label(hdr, text="🗺  AI Tourist Route Planner  |  Project 26",
-                 bg=C["header"], fg=C["white"],
-                 font=("Helvetica", 13, "bold"), pady=10, padx=14).pack(side=tk.LEFT)
-        self.status_lbl = tk.Label(hdr, text="● Ready",
-                                   bg=C["header"], fg="#6EE7B7",
-                                   font=("Helvetica", 10, "bold"), padx=14)
-        self.status_lbl.pack(side=tk.RIGHT)
+        
+        # Left branding
+        brand_f = tk.Frame(hdr, bg=C["header"])
+        brand_f.pack(side=tk.LEFT, padx=14, pady=8)
+        tk.Label(brand_f, text="🗺  AEROPATH AI",
+                 bg=C["header"], fg=C["secondary"],
+                 font=("Helvetica", 11, "bold")).pack(side=tk.LEFT)
+        tk.Label(brand_f, text=" |  TACTICAL HUD v4.2  (TOURIST ROUTE PLANNER)",
+                 bg=C["header"], fg=C["header_txt"],
+                 font=("Helvetica", 9, "bold")).pack(side=tk.LEFT, padx=(4, 0))
+                 
+        # Right glowing status badge
+        badge_f = tk.Frame(hdr, bg="#0A0A0A", highlightbackground=C["secondary"], highlightthickness=1, padx=10, pady=3)
+        badge_f.pack(side=tk.RIGHT, padx=14, pady=8)
+        self.status_lbl = tk.Label(badge_f, text="● READY",
+                                   bg="#0A0A0A", fg=C["secondary"],
+                                   font=("Helvetica", 9, "bold"))
+        self.status_lbl.pack()
 
     # ── Left column: grid + landmarks ─────────────────────────────────────────
 
@@ -389,8 +403,8 @@ class RoutePlannerCoreUI:
         mode_card = tk.Frame(middle, bg=C["card"],
                              highlightbackground=C["border"], highlightthickness=1)
         mode_card.pack(fill=tk.X, pady=(0, 2))
-        tk.Label(mode_card, text="✏  Click Mode",
-                 bg="#E2E8F0", fg=C["txt"],
+        tk.Label(mode_card, text="✏  Click Tool Mode",
+                 bg="#1E293B", fg=C["txt"],
                  font=("Helvetica", 8, "bold"), padx=8, pady=3, anchor="w").pack(fill=tk.X)
 
         mode_row = tk.Frame(mode_card, bg=C["card"], padx=6, pady=5)
@@ -437,7 +451,7 @@ class RoutePlannerCoreUI:
                              highlightbackground=C["border"], highlightthickness=1)
         type_card.pack(fill=tk.X, pady=(4, 0))
         tk.Label(type_card, text="Cell Colour Key",
-                 bg="#E2E8F0", fg=C["txt"],
+                 bg="#1E293B", fg=C["txt"],
                  font=("Helvetica", 8, "bold"), padx=8, pady=3, anchor="w").pack(fill=tk.X)
         legend_data = [
             ("Start",     C["start"]),    ("Goal",      C["goal"]),
@@ -683,28 +697,37 @@ class RoutePlannerCoreUI:
 
     # MODULE 6 – Integrated Pipeline + XAI ────────────────────────────────────
     def _build_module6(self, parent):
-        c = section_card(parent, "⑥ Integrated Pipeline & Explainable Output  (Reasoning Trace)", C["m6"], pady=4)
+        c = section_card(parent, "⑥ Tactical XAI Console & Reasoning Stream", C["m6"], pady=4)
 
         # Route trace row
         self.route_trace = tk.Label(c, text="Route: —", bg=C["card"],
-                                    fg=C["m6"], font=("Helvetica", 9, "bold"),
+                                    fg=C["secondary"], font=("Helvetica", 9, "bold"),
                                     wraplength=420, justify=tk.LEFT)
         self.route_trace.pack(anchor="w", pady=(0, 4))
 
-        self.xai_text = tk.Text(c, width=58, height=5,
-                                font=("Helvetica", 8),
-                                bg="#131313", fg=C["txt"],
+        # Terminal Window Container
+        term_frame = tk.Frame(c, bg="#0A0A0A", highlightbackground=C["border"], highlightthickness=1)
+        term_frame.pack(fill=tk.X)
+
+        # Terminal Top Bar
+        tb = tk.Frame(term_frame, bg="#1E1E1E", height=18)
+        tb.pack(fill=tk.X)
+        tk.Label(tb, text="● ● ●   >_ XAI_TELEMETRY_STREAM", bg="#1E1E1E", fg="#94A3B8",
+                 font=("Courier", 7, "bold"), padx=6).pack(side=tk.LEFT)
+
+        self.xai_text = tk.Text(term_frame, width=58, height=6,
+                                font=("Courier", 8),
+                                bg="#0A0A0A", fg="#E2E8F0",
                                 relief="flat", wrap=tk.WORD,
-                                highlightbackground=C["border"],
-                                highlightthickness=1)
+                                padx=6, pady=4,
+                                insertbackground=C["secondary"])
         self.xai_text.pack(fill=tk.X)
         self.xai_text.insert(tk.END,
-            "Run any algorithm above to see the AI reasoning trace here.\n"
-            "The system will explain:\n"
-            "  • Which path was chosen and why\n"
-            "  • How CSP constraints filtered options\n"
-            "  • Bayesian uncertainty impact on route cost")
+            "> SYSTEM_READY: AeroPath Tactical HUD Initialized.\n"
+            "> [PROTOCOL]: Select search algorithm to stream reasoning.\n"
+            "> [XAI]: Real-time CSP bounds & Bayesian risk telemetry active.")
         self.xai_text.config(state=tk.DISABLED)
+
         pill_btn(c, "💡 Why This Route? — AI Analysis", C["m6"],
                  cmd=self._show_xai_details, w=388, h=30).pack(pady=(6, 0))
 
@@ -1123,8 +1146,10 @@ class RoutePlannerCoreUI:
 
     # ── Algorithm Run & Animation ──────────────────────────────────────────────
 
-    def _set_status(self, msg, color="#6EE7B7"):
-        self.status_lbl.config(text=f"● {msg}", fg=color)
+    def _set_status(self, msg, color=None):
+        if color is None or color == "#6EE7B7":
+            color = C["secondary"]
+        self.status_lbl.config(text=f"● {msg.upper()}", fg=color)
 
     def _validate_planning_state(self):
         """
@@ -1222,9 +1247,14 @@ class RoutePlannerCoreUI:
             text=f"Route: {landmark_path}" if landmark_path else "Route: Start → … → Goal")
         xai = self.xai_engine.construct_natural_language_explanation(
             algo_id, path, len(explored), total_cost)
+        formatted_log = (
+            f"> [PROTOCOL]: {algo_id}_SEARCH EXECUTION\n"
+            f"> [METRICS]: Steps={len(path)} | Explored={len(explored)} | Cost={total_cost:.2f}\n"
+            f"> [REASONING]: {xai}"
+        )
         self.xai_text.config(state=tk.NORMAL)
         self.xai_text.delete("1.0", tk.END)
-        self.xai_text.insert(tk.END, xai)
+        self.xai_text.insert(tk.END, formatted_log)
         self.xai_text.config(state=tk.DISABLED)
 
         # ── Animate ──
@@ -1396,9 +1426,10 @@ class RoutePlannerCoreUI:
         self.xai_text.config(state=tk.NORMAL)
         self.xai_text.delete("1.0", tk.END)
         self.xai_text.insert(tk.END,
-            "Run any algorithm above to see the AI reasoning trace here.")
+            "> SYSTEM_RESET: Tactical HUD reset.\n"
+            "> [PROTOCOL]: Select search algorithm to stream reasoning.")
         self.xai_text.config(state=tk.DISABLED)
-        self._set_status("Ready", "#6EE7B7")
+        self._set_status("Ready", C["secondary"])
         self._update_curr_loc_lbl()
         self._render_grid()
 
