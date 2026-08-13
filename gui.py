@@ -22,33 +22,33 @@ import search
 
 # ─── Colour Palette ──────────────────────────────────────────────────────────
 C = {
-    "bg":          "#F0F4F8",
-    "card":        "#FFFFFF",
-    "border":      "#CBD5E1",
-    "header":      "#1E3A5F",
-    "header_txt":  "#FFFFFF",
-
+    "bg":          "#0D0D0D",    # Level 0 Base - Obsidian absolute black
+    "card":        "#1A1A1A",    # Level 1 Surfaces - Deep charcoal/obsidian
+    "border":      "#2A2A2A",    # 1px solid border
+    "header":      "#1F1F3D",    # Deep indigo header background
+    "header_txt":  "#E5E2E1",    # Neon/light text
+    
     # Grid cells
-    "free":        "#FFFFFF",
-    "start":       "#10B981",
-    "goal":        "#EF4444",
-    "obstacle":    "#374151",
-    "traffic":     "#F59E0B",
-    "explored":    "#BAE6FD",
-    "path":        "#2563EB",
-    "robot":       "#7C3AED",
-    "landmark":    "#FDE68A",
-
-    # Module accent strips
-    "m1": "#3B82F6",   # blue   – Environment
-    "m2": "#10B981",   # green  – Search
-    "m3": "#F59E0B",   # amber  – CSP
-    "m4": "#EF4444",   # red    – Decision
-    "m5": "#8B5CF6",   # purple – Uncertainty
-    "m6": "#0EA5E9",   # sky    – Pipeline
-
-    "txt":    "#1E293B",
-    "txt2":   "#64748B",
+    "free":        "#131313",    # Idle cells dark
+    "start":       "#6366f1",    # Electric Indigo
+    "goal":        "#f59e0b",    # Amber
+    "obstacle":    "#2A2A2A",    # Gray/black
+    "traffic":     "#eab308",    # Amber/Yellow traffic
+    "explored":    "#1F2937",    # Darker blue explored path
+    "path":        "#22d3ee",    # Cyan active path
+    "robot":       "#6366f1",    # Robot Indigo pulse
+    "landmark":    "#ec4899",    # Magenta landmark highlight
+    
+    # Module accent strips (Obsidian Neon style)
+    "m1": "#6366f1",   # Electric Indigo
+    "m2": "#22d3ee",   # Cyan
+    "m3": "#f59e0b",   # Amber
+    "m4": "#10b981",   # Emerald Success
+    "m5": "#8b5cf6",   # Purple
+    "m6": "#ec4899",   # Magenta
+    
+    "txt":    "#E5E2E1",    # Light gray text
+    "txt2":   "#A0A0B0",    # Muted secondary text
     "white":  "#FFFFFF",
 }
 
@@ -238,11 +238,18 @@ class RoutePlannerCoreUI:
         self.route_algo_cb['values'] = ("A*", "BFS", "UCS", "DFS")
         self.route_algo_cb.pack(fill=tk.X)
 
+        self.tour_mode_var = tk.BooleanVar(value=False)
+        tk.Checkbutton(rf, text=" Stitched Sequential Tour", variable=self.tour_mode_var,
+                       bg=C["card"], fg=C["txt"], selectcolor=C["bg"],
+                       font=("Helvetica", 8, "bold"), activebackground=C["card"],
+                       activeforeground=C["txt"]).pack(anchor="w", pady=(4, 0))
+
         btn_f = tk.Frame(route_card, bg=C["card"], padx=8, pady=4)
         btn_f.pack(fill=tk.X)
 
         def _route_landmarks():
             if self._running: return
+            algo_id = self.route_algo_var.get()
             lm_coords = {
                 "Beach 🏖 (0,0)": (0, 0),
                 "Museum 🏛 (3,5)": (3, 5),
@@ -251,24 +258,123 @@ class RoutePlannerCoreUI:
                 "Mall 🛍 (19,19)": (19, 19)
             }
             start_coord = self.env.start_coordinate
-            goal_coord = lm_coords[self.goal_lm_var.get()]
 
-            if start_coord == goal_coord:
-                self._set_status("Already at destination!", C["goal"])
-                return
+            if self.tour_mode_var.get():
+                tour_sequence = [
+                    (0, 0),    # Beach
+                    (3, 5),    # Museum
+                    (10, 12),  # Temple
+                    (14, 8),   # Park
+                    (19, 19)   # Mall
+                ]
+                milestones = [start_coord]
+                for node in tour_sequence:
+                    if node != milestones[-1]:
+                        milestones.append(node)
 
-            self._sequential_routing = True
-            self.csp.remove_impassable_obstacle(*goal_coord)
-            self.env.reconfigure_goal_state(*goal_coord)
-            self.csp.remove_impassable_obstacle(*goal_coord)
-            self.uncertainty.unregister_high_traffic_zone(*goal_coord)
+                if len(milestones) < 2:
+                    self._set_status("Already visited all landmarks!", C["goal"])
+                    return
 
-            self._render_grid()
-            self._run(self.route_algo_var.get())
+                self._running = True
+                self._cancel_anims()
+                self._render_grid()
+                self._set_status(f"Running tour using {algo_id}…", "#FCD34D")
 
-        btn = pill_btn(btn_f, "🚀 Start Journey", C["m2"],
-                       cmd=_route_landmarks, w=388, h=32)
-        btn.pack(pady=2)
+                t0 = time.perf_counter()
+                full_path = []
+                full_explored = []
+
+                vf = self.csp.assess_cell_viability
+                cf = self.uncertainty.calculate_dynamic_step_cost
+
+                for leg_start, leg_end in zip(milestones[:-1], milestones[1:]):
+                    self.env.reconfigure_start_state(*leg_start)
+                    self.env.reconfigure_goal_state(*leg_end)
+                    self.csp.remove_impassable_obstacle(*leg_end)
+                    self.uncertainty.unregister_high_traffic_zone(*leg_end)
+
+                    if   algo_id == "BFS": path, explored = search.execute_breadth_first_search(self.env, vf, cf)
+                    elif algo_id == "DFS": path, explored = search.execute_depth_first_search(self.env, vf, cf)
+                    elif algo_id == "UCS": path, explored = search.execute_uniform_cost_search(self.env, vf, cf)
+                    else:                  path, explored = search.execute_astar_search(self.env, vf, cf)
+
+                    if path:
+                        if not full_path:
+                            full_path.extend(path)
+                        else:
+                            full_path.extend(path[1:])
+                    full_explored.extend(explored)
+
+                elapsed = (time.perf_counter() - t0) * 1000
+
+                self.env.reconfigure_start_state(*start_coord)
+                final_goal = milestones[-1]
+                self.env.reconfigure_goal_state(*final_goal)
+
+                total_cost = self.uncertainty.calculate_accumulated_trajectory_cost(full_path)
+
+                self.last_algo_id = algo_id
+                self.last_path = full_path
+                self.last_explored = full_explored
+                self.last_elapsed = elapsed
+                self.last_cost = total_cost
+
+                self.sv_algo.config(text=algo_id + " Tour")
+                self.sv_steps.config(text=str(len(full_path)))
+                self.sv_nodes.config(text=str(len(full_explored)))
+                self.sv_time.config(text=f"{elapsed:.1f}ms")
+
+                compliant = self.csp.evaluate_resource_compliance(total_cost, elapsed / 1000)
+                self.sv_cost.config(
+                    text=f"Total Cost: {total_cost:.2f}  |  Budget OK: {'✓' if compliant else '✗'}",
+                    fg=C["m2"] if compliant else C["m4"])
+                self.csp_status.config(
+                    text="✓ Tour within constraints" if compliant else "⚠ Tour exceeded constraints",
+                    fg=C["m2"] if compliant else C["m4"])
+
+                mm_val = self.decision.execute_minimax_lookahead(
+                    self.env.start_coordinate, 3, True, self.env, cf)
+                self.mm_score.config(text=f"{mm_val:.1f}")
+                self.mm_best.config(text=algo_id)
+                self.mm_trace.config(
+                    text=f"Minimax evaluated depth-3 tree from Tour Start. Score={mm_val:.1f}.")
+
+                prob, _, _ = self.uncertainty.evaluate_congestion_probability()
+                self.b_storm.config(text=f"{self.uncertainty.probability_of_storm:.0%}")
+                self.b_incident.config(text=f"{self.uncertainty.probability_of_road_incident:.0%}")
+                self.b_congest.config(text=f"{prob:.0%}")
+                self.b_delay.config(text=str(len(self.uncertainty.high_traffic_risk_cells)))
+
+                self.route_trace.config(text=f"Tour: Start → Beach → Museum → Temple → Park → Mall")
+                xai_desc = (
+                    f"Planned a multi-landmark Tour visiting all 5 major tourist landmarks using {algo_id} search. "
+                    f"Stitched sequential trajectory is {len(full_path)} cells long, expanding {len(full_explored)} states leg-by-leg. "
+                    f"Total accumulated travel cost evaluates to {total_cost:.2f} resource units."
+                )
+                self.xai_text.config(state=tk.NORMAL)
+                self.xai_text.delete("1.0", tk.END)
+                self.xai_text.insert(tk.END, xai_desc)
+                self.xai_text.config(state=tk.DISABLED)
+
+                self._anim_explored(full_explored, full_path, algo_id)
+            else:
+                goal_coord = lm_coords[self.goal_lm_var.get()]
+                if start_coord == goal_coord:
+                    self._set_status("Already at destination!", C["goal"])
+                    return
+                self._sequential_routing = True
+                self.csp.remove_impassable_obstacle(*goal_coord)
+                self.env.reconfigure_goal_state(*goal_coord)
+                self.csp.remove_impassable_obstacle(*goal_coord)
+                self.uncertainty.unregister_high_traffic_zone(*goal_coord)
+                self._render_grid()
+                self._run(algo_id)
+
+        self.route_landmarks_fn = _route_landmarks
+        self.start_journey_btn = pill_btn(btn_f, "🚀 Start Journey", C["m2"],
+                                          cmd=_route_landmarks, w=388, h=32)
+        self.start_journey_btn.pack(pady=2)
 
     def _build_middle(self, parent):
         middle = tk.Frame(parent, bg=C["bg"])
@@ -420,6 +526,26 @@ class RoutePlannerCoreUI:
         pill_btn(c, "✕  Clear Grid", C["m4"],
                  cmd=self._clear, w=388, h=30).pack(pady=2)
 
+        # Obstacle Density Slider & Button
+        tk.Frame(c, bg=C["border"], height=1).pack(fill=tk.X, pady=(6, 2))
+        obs_f = tk.Frame(c, bg=C["card"])
+        obs_f.pack(fill=tk.X, pady=2)
+        
+        tk.Label(obs_f, text="🧱 Density:", bg=C["card"], fg=C["txt"],
+                 font=("Helvetica", 8, "bold")).pack(side=tk.LEFT, padx=(4, 6))
+        self.obstacle_density_var = tk.DoubleVar(value=0.20)
+        self.obs_density_lbl = tk.Label(obs_f, text="20%", bg=C["card"], fg=C["m2"],
+                                        font=("Helvetica", 8, "bold"))
+        self.obs_density_lbl.pack(side=tk.LEFT, padx=(0, 6))
+        
+        sl_o = ttk.Scale(obs_f, from_=0.05, to=0.45, variable=self.obstacle_density_var,
+                         orient=tk.HORIZONTAL, length=120,
+                         command=lambda v: self.obs_density_lbl.config(text=f"{int(float(v)*100)}%"))
+        sl_o.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 8))
+        
+        pill_btn(obs_f, "🎲 Populate", C["m2"],
+                 cmd=self._generate_random_obstacles, w=100, h=28).pack(side=tk.RIGHT)
+
     # MODULE 3 – CSP ───────────────────────────────────────────────────────────
     def _build_module3(self, parent):
         c = section_card(parent, "③ Constraint Satisfaction Problem (CSP Engine)", C["m3"], pady=4)
@@ -496,12 +622,10 @@ class RoutePlannerCoreUI:
 
     # MODULE 5 – Uncertainty ───────────────────────────────────────────────────
     def _build_module5(self, parent):
-        c = section_card(parent, "⑤ Reasoning Under Uncertainty", C["m5"], pady=4)
-        tk.Label(c, text="Bayesian Network", bg=C["card"], fg=C["txt"],
-                 font=("Helvetica", 8, "bold")).pack(anchor="w")
+        c = section_card(parent, "⑤ Reasoning Under Uncertainty (Bayesian Network)", C["m5"], pady=4)
 
         bf = tk.Frame(c, bg=C["card"])
-        bf.pack(fill=tk.X)
+        bf.pack(fill=tk.X, pady=(0, 4))
         bf.columnconfigure(0, weight=1)
         bf.columnconfigure(1, weight=1)
         self.b_storm    = mini_stat(bf, "P(Storm)",     C["m5"], 0, 0)
@@ -514,9 +638,48 @@ class RoutePlannerCoreUI:
         self.b_congest.config(text="—")
         self.b_delay.config(text="0")
 
-        tk.Button(c, text="🔄 Refresh Priors", bg=C["m5"], fg=C["white"],
-                  font=("Helvetica", 7, "bold"), relief="flat", cursor="hand2",
-                  command=self._refresh_bayes).pack(pady=(6, 0))
+        # Dynamic parameter tuner sliders
+        row = tk.Frame(c, bg=C["card"])
+        row.pack(fill=tk.X, pady=4)
+        
+        # Storm slider
+        sf = tk.Frame(row, bg=C["card"])
+        sf.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(0, 8))
+        tk.Label(sf, text="⚡ Storm Prior", bg=C["card"], fg=C["txt"],
+                 font=("Helvetica", 8, "bold")).pack(anchor="w")
+        self.storm_var = tk.DoubleVar(value=0.30)
+        self.storm_lbl = tk.Label(sf, text="30%", bg=C["card"], fg=C["m5"],
+                                  font=("Helvetica", 10, "bold"))
+        self.storm_lbl.pack(anchor="w")
+        sl_s = ttk.Scale(sf, from_=0.0, to=1.0, variable=self.storm_var,
+                         orient=tk.HORIZONTAL, length=170,
+                         command=lambda v: (
+                             self.storm_lbl.config(text=f"{int(float(v)*100)}%"),
+                             setattr(self.uncertainty, 'probability_of_storm', float(v)),
+                             self._update_bayes_inference()
+                         ))
+        sl_s.pack(fill=tk.X)
+
+        # Incident slider
+        if_ = tk.Frame(row, bg=C["card"])
+        if_.pack(side=tk.LEFT, expand=True, fill=tk.X)
+        tk.Label(if_, text="🚗 Incident Prior", bg=C["card"], fg=C["txt"],
+                 font=("Helvetica", 8, "bold")).pack(anchor="w")
+        self.incident_var = tk.DoubleVar(value=0.15)
+        self.incident_lbl = tk.Label(if_, text="15%", bg=C["card"], fg=C["m5"],
+                                     font=("Helvetica", 10, "bold"))
+        self.incident_lbl.pack(anchor="w")
+        sl_i = ttk.Scale(if_, from_=0.0, to=1.0, variable=self.incident_var,
+                         orient=tk.HORIZONTAL, length=170,
+                         command=lambda v: (
+                             self.incident_lbl.config(text=f"{int(float(v)*100)}%"),
+                             setattr(self.uncertainty, 'probability_of_road_incident', float(v)),
+                             self._update_bayes_inference()
+                         ))
+        sl_i.pack(fill=tk.X)
+
+        pill_btn(c, "🔄 Randomise Priors", C["m5"],
+                 cmd=self._refresh_bayes, w=388, h=30).pack(pady=(6, 0))
 
     # MODULE 6 – Integrated Pipeline + XAI ────────────────────────────────────
     def _build_module6(self, parent):
@@ -530,7 +693,7 @@ class RoutePlannerCoreUI:
 
         self.xai_text = tk.Text(c, width=58, height=5,
                                 font=("Helvetica", 8),
-                                bg="#F8FAFC", fg=C["txt"],
+                                bg="#131313", fg=C["txt"],
                                 relief="flat", wrap=tk.WORD,
                                 highlightbackground=C["border"],
                                 highlightthickness=1)
@@ -1239,9 +1402,57 @@ class RoutePlannerCoreUI:
         self._update_curr_loc_lbl()
         self._render_grid()
 
+    def _generate_random_obstacles(self):
+        """Generates random obstacles based on slider density, avoiding landmarks/start/goal."""
+        if self._running: return
+        density = self.obstacle_density_var.get()
+        self.csp.structural_obstacles_set.clear()
+        
+        rows = self.env.total_rows
+        cols = self.env.total_cols
+        total_cells = rows * cols
+        num_obstacles = int(total_cells * density)
+        
+        start = self.env.start_coordinate
+        goal = self.env.goal_coordinate
+        
+        count = 0
+        attempts = 0
+        while count < num_obstacles and attempts < 1000:
+            attempts += 1
+            r = random.randint(0, rows - 1)
+            c = random.randint(0, cols - 1)
+            if (r, c) == start or (r, c) == goal or (r, c) in LANDMARKS:
+                continue
+            if (r, c) not in self.csp.structural_obstacles_set:
+                self.csp.register_impassable_obstacle(r, c)
+                self.uncertainty.unregister_high_traffic_zone(r, c)
+                count += 1
+                
+        self._render_grid()
+        self._set_status(f"Generated {count} obstacles", C["m1"])
+
     def _refresh_bayes(self):
-        """Randomise Bayesian priors and update display."""
-        self.uncertainty.probability_of_storm        = round(random.uniform(0.1, 0.7), 2)
-        self.uncertainty.probability_of_road_incident = round(random.uniform(0.05, 0.5), 2)
+        """Randomise Bayesian priors, synchronize sliders, and run inference."""
+        p_storm = round(random.uniform(0.0, 1.0), 2)
+        p_incident = round(random.uniform(0.0, 1.0), 2)
+        
+        self.uncertainty.probability_of_storm = p_storm
+        self.uncertainty.probability_of_road_incident = p_incident
+        
+        if hasattr(self, 'storm_var'):
+            self.storm_var.set(p_storm)
+            self.storm_lbl.config(text=f"{int(p_storm*100)}%")
+        if hasattr(self, 'incident_var'):
+            self.incident_var.set(p_incident)
+            self.incident_lbl.config(text=f"{int(p_incident*100)}%")
+            
+        self._update_bayes_inference()
+
+    def _update_bayes_inference(self):
+        """Runs Bayesian network inference and updates UI stats."""
         self.b_storm.config(text=f"{self.uncertainty.probability_of_storm:.0%}")
         self.b_incident.config(text=f"{self.uncertainty.probability_of_road_incident:.0%}")
+        prob, _, _ = self.uncertainty.evaluate_congestion_probability()
+        self.b_congest.config(text=f"{prob:.0%}")
+        self.b_delay.config(text=str(len(self.uncertainty.high_traffic_risk_cells)))
