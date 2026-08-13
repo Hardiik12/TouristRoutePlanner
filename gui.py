@@ -162,11 +162,12 @@ class RoutePlannerCoreUI:
 
         self._build_header()
 
-        # Two-column body
+        # Three-column body
         body = tk.Frame(self.root, bg=C["bg"])
         body.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 10))
 
         self._build_left(body)
+        self._build_middle(body)
         self._build_right(body)
 
         self._render_grid()
@@ -192,15 +193,94 @@ class RoutePlannerCoreUI:
         left = tk.Frame(parent, bg=C["bg"])
         left.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 8), pady=6)
 
-        # MODULE 1 header
-        m1_hdr = tk.Frame(left, bg=C["m1"])
+        m2_hdr = tk.Frame(left, bg=C["m2"])
+        m2_hdr.pack(fill=tk.X)
+        tk.Label(m2_hdr, text="① Planning & Search Controls",
+                 bg=C["m2"], fg=C["white"],
+                 font=("Helvetica", 9, "bold"), pady=4, padx=8, anchor="w").pack(fill=tk.X)
+
+        self._build_module2(left)
+        self._build_module3(left)
+        self._build_landmark_routing(left)
+
+    def _build_landmark_routing(self, parent):
+        route_card = tk.Frame(parent, bg=C["card"],
+                              highlightbackground=C["border"], highlightthickness=1)
+        route_card.pack(fill=tk.X, pady=(6, 0))
+        tk.Label(route_card, text="📍 Tourist Landmark Routing",
+                 bg=C["m1"], fg=C["white"],
+                 font=("Helvetica", 8, "bold"), padx=8, pady=4, anchor="w").pack(fill=tk.X)
+
+        rf = tk.Frame(route_card, bg=C["card"], padx=8, pady=6)
+        rf.pack(fill=tk.X)
+
+        lf = tk.Frame(rf, bg=C["card"])
+        lf.pack(fill=tk.X, pady=(0, 4))
+        self.curr_loc_lbl = tk.Label(lf, text="📍 Current: Beach 🏖 (0,0)", bg=C["card"], fg=C["m1"],
+                                     font=("Helvetica", 8, "bold"), anchor="w")
+        self.curr_loc_lbl.pack(fill=tk.X)
+
+        df = tk.Frame(rf, bg=C["card"])
+        df.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(0, 4))
+        tk.Label(df, text="🎯 Next Destination", bg=C["card"], fg=C["txt2"],
+                 font=("Helvetica", 7, "bold")).pack(anchor="w", pady=(0, 2))
+        self.goal_lm_var = tk.StringVar(value="Museum 🏛 (3,5)")
+        self.goal_lm_cb = ttk.Combobox(df, textvariable=self.goal_lm_var, state="readonly", font=("Helvetica", 8), width=12)
+        self.goal_lm_cb['values'] = ("Beach 🏖 (0,0)", "Museum 🏛 (3,5)", "Temple ⛩ (10,12)", "Park 🌳 (14,8)", "Mall 🛍 (19,19)")
+        self.goal_lm_cb.pack(fill=tk.X)
+
+        af = tk.Frame(rf, bg=C["card"])
+        af.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(4, 0))
+        tk.Label(af, text="⚙ Algorithm", bg=C["card"], fg=C["txt2"],
+                 font=("Helvetica", 7, "bold")).pack(anchor="w", pady=(0, 2))
+        self.route_algo_var = tk.StringVar(value="A*")
+        self.route_algo_cb = ttk.Combobox(af, textvariable=self.route_algo_var, state="readonly", font=("Helvetica", 8), width=8)
+        self.route_algo_cb['values'] = ("A*", "BFS", "UCS", "DFS")
+        self.route_algo_cb.pack(fill=tk.X)
+
+        btn_f = tk.Frame(route_card, bg=C["card"], padx=8, pady=4)
+        btn_f.pack(fill=tk.X)
+
+        def _route_landmarks():
+            if self._running: return
+            lm_coords = {
+                "Beach 🏖 (0,0)": (0, 0),
+                "Museum 🏛 (3,5)": (3, 5),
+                "Temple ⛩ (10,12)": (10, 12),
+                "Park 🌳 (14,8)": (14, 8),
+                "Mall 🛍 (19,19)": (19, 19)
+            }
+            start_coord = self.env.start_coordinate
+            goal_coord = lm_coords[self.goal_lm_var.get()]
+
+            if start_coord == goal_coord:
+                self._set_status("Already at destination!", C["goal"])
+                return
+
+            self._sequential_routing = True
+            self.csp.remove_impassable_obstacle(*goal_coord)
+            self.env.reconfigure_goal_state(*goal_coord)
+            self.csp.remove_impassable_obstacle(*goal_coord)
+            self.uncertainty.unregister_high_traffic_zone(*goal_coord)
+
+            self._render_grid()
+            self._run(self.route_algo_var.get())
+
+        btn = pill_btn(btn_f, "🚀 Start Journey", C["m2"],
+                       cmd=_route_landmarks, w=388, h=32)
+        btn.pack(pady=2)
+
+    def _build_middle(self, parent):
+        middle = tk.Frame(parent, bg=C["bg"])
+        middle.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 8), pady=6)
+
+        m1_hdr = tk.Frame(middle, bg=C["m1"])
         m1_hdr.pack(fill=tk.X)
-        tk.Label(m1_hdr, text="① Environment & State Space",
+        tk.Label(m1_hdr, text="② Interactive Map Space",
                  bg=C["m1"], fg=C["white"],
                  font=("Helvetica", 9, "bold"), pady=4, padx=8, anchor="w").pack(fill=tk.X)
 
-        # ── Mode Selector toolbar ─────────────────────────────────────────
-        mode_card = tk.Frame(left, bg=C["card"],
+        mode_card = tk.Frame(middle, bg=C["card"],
                              highlightbackground=C["border"], highlightthickness=1)
         mode_card.pack(fill=tk.X, pady=(0, 2))
         tk.Label(mode_card, text="✏  Click Mode",
@@ -234,17 +314,12 @@ class RoutePlannerCoreUI:
             cv.bind("<Button-1>", lambda _, mid=mode_id: _select(mid))
             cv.bind("<Enter>",    lambda _, cv=cv, color=color: cv.itemconfig("all"))
 
-        # Draw active mode initially
-        self._refresh_mode_buttons()
-
-        # Current-mode indicator
         self.mode_indicator = tk.Label(mode_card,
             text="Mode: ⬛ Obstacle  |  Left-click on grid to paint",
             bg=C["card"], fg=C["txt2"], font=("Helvetica", 7), pady=3)
         self.mode_indicator.pack(fill=tk.X, padx=8)
 
-        # ── Grid canvas ───────────────────────────────────────────────────
-        canvas_card = tk.Frame(left, bg=C["card"],
+        canvas_card = tk.Frame(middle, bg=C["card"],
                                highlightbackground=C["border"], highlightthickness=1)
         canvas_card.pack()
         grid_px = self.env.total_cols * CELL_PX
@@ -252,88 +327,9 @@ class RoutePlannerCoreUI:
                                         bg=C["free"], highlightthickness=0)
         self.display_canvas.pack(padx=4, pady=4)
 
-        # ── Landmark Route Selector Card ──────────────────────────────────────────────
-        route_card = tk.Frame(left, bg=C["card"],
-                              highlightbackground=C["border"], highlightthickness=1)
-        route_card.pack(fill=tk.X, pady=(6, 0))
-        tk.Label(route_card, text="📍 Tourist Landmark Routing",
-                 bg=C["m1"], fg=C["white"],
-                 font=("Helvetica", 8, "bold"), padx=8, pady=4, anchor="w").pack(fill=tk.X)
-
-        rf = tk.Frame(route_card, bg=C["card"], padx=8, pady=6)
-        rf.pack(fill=tk.X)
-
-        # Current Location display
-        lf = tk.Frame(rf, bg=C["card"])
-        lf.pack(fill=tk.X, pady=(0, 4))
-        self.curr_loc_lbl = tk.Label(lf, text="📍 Current: Beach 🏖 (0,0)", bg=C["card"], fg=C["m1"],
-                                     font=("Helvetica", 8, "bold"), anchor="w")
-        self.curr_loc_lbl.pack(fill=tk.X)
-
-        # Destination Combobox
-        df = tk.Frame(rf, bg=C["card"])
-        df.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(0, 4))
-        tk.Label(df, text="🎯 Next Destination", bg=C["card"], fg=C["txt2"],
-                 font=("Helvetica", 7, "bold")).pack(anchor="w", pady=(0, 2))
-        self.goal_lm_var = tk.StringVar(value="Museum 🏛 (3,5)")
-        self.goal_lm_cb = ttk.Combobox(df, textvariable=self.goal_lm_var, state="readonly", font=("Helvetica", 8), width=12)
-        self.goal_lm_cb['values'] = ("Beach 🏖 (0,0)", "Museum 🏛 (3,5)", "Temple ⛩ (10,12)", "Park 🌳 (14,8)", "Mall 🛍 (19,19)")
-        self.goal_lm_cb.pack(fill=tk.X)
-
-        # Algorithm Combobox
-        af = tk.Frame(rf, bg=C["card"])
-        af.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(4, 0))
-        tk.Label(af, text="⚙ Algorithm", bg=C["card"], fg=C["txt2"],
-                 font=("Helvetica", 7, "bold")).pack(anchor="w", pady=(0, 2))
-        self.route_algo_var = tk.StringVar(value="A*")
-        self.route_algo_cb = ttk.Combobox(af, textvariable=self.route_algo_var, state="readonly", font=("Helvetica", 8), width=8)
-        self.route_algo_cb['values'] = ("A*", "BFS", "UCS", "DFS")
-        self.route_algo_cb.pack(fill=tk.X)
-
-        # Start Journey Button
-        btn_f = tk.Frame(route_card, bg=C["card"], padx=8, pady=4)
-        btn_f.pack(fill=tk.X)
-
-        def _route_landmarks():
-            if self._running: return
-            # Parse coordinates
-            lm_coords = {
-                "Beach 🏖 (0,0)": (0, 0),
-                "Museum 🏛 (3,5)": (3, 5),
-                "Temple ⛩ (10,12)": (10, 12),
-                "Park 🌳 (14,8)": (14, 8),
-                "Mall 🛍 (19,19)": (19, 19)
-            }
-            start_coord = self.env.start_coordinate
-            goal_coord = lm_coords[self.goal_lm_var.get()]
-
-            if start_coord == goal_coord:
-                self._set_status("Already at destination!", C["goal"])
-                return
-
-            # Set sequential routing flag
-            self._sequential_routing = True
-
-            # Update goal state (start is current position)
-            self.csp.remove_impassable_obstacle(*goal_coord)
-            self.env.reconfigure_goal_state(*goal_coord)
-            self.csp.remove_impassable_obstacle(*goal_coord)
-            self.uncertainty.unregister_high_traffic_zone(*goal_coord)
-
-            self._render_grid()
-            # Run the selected algorithm
-            self._run(self.route_algo_var.get())
-
-        btn = pill_btn(btn_f, "🚀 Start Journey", C["m2"],
-                       cmd=_route_landmarks, w=388, h=32)
-        btn.pack(pady=2)
-
-
-
-        # ── Cell type legend ──────────────────────────────────────────────
-        type_card = tk.Frame(left, bg=C["card"],
+        type_card = tk.Frame(middle, bg=C["card"],
                              highlightbackground=C["border"], highlightthickness=1)
-        type_card.pack(fill=tk.X, pady=(6, 0))
+        type_card.pack(fill=tk.X, pady=(4, 0))
         tk.Label(type_card, text="Cell Colour Key",
                  bg="#E2E8F0", fg=C["txt"],
                  font=("Helvetica", 8, "bold"), padx=8, pady=3, anchor="w").pack(fill=tk.X)
@@ -354,6 +350,22 @@ class RoutePlannerCoreUI:
                      font=("Helvetica", 7)).grid(row=r, column=cv2*2+1, padx=(0, 8), sticky="w")
         self._update_curr_loc_lbl()
 
+        self._build_help_card(middle)
+
+    def _build_metrics(self, parent):
+        c = section_card(parent, "② Search Performance Metrics", C["m5"], pady=4)
+        sg = tk.Frame(c, bg=C["card"])
+        sg.pack(fill=tk.X, pady=(2, 0))
+        sg.columnconfigure(0, weight=1)
+        sg.columnconfigure(1, weight=1)
+        sg.columnconfigure(2, weight=1)
+        sg.columnconfigure(3, weight=1)
+
+        self.sv_algo  = mini_stat(sg, "Algorithm",     C["m5"], 0, 0)
+        self.sv_steps = mini_stat(sg, "Path Steps",    C["m1"], 1, 0)
+        self.sv_nodes = mini_stat(sg, "Nodes Expanded",C["m3"], 2, 0)
+        self.sv_time  = mini_stat(sg, "Compute Time",  C["m2"], 3, 0)
+
 
     # ── Right column: all control modules ─────────────────────────────────────
 
@@ -361,14 +373,15 @@ class RoutePlannerCoreUI:
         right = tk.Frame(parent, bg=C["bg"])
         right.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, pady=6)
 
-        self._build_module2(right)
-        self._build_module3(right)
+        m6_hdr = tk.Frame(right, bg=C["header"])
+        m6_hdr.pack(fill=tk.X)
+        tk.Label(m6_hdr, text="③ AI Decision Support & Insights",
+                 bg=C["header"], fg=C["white"],
+                 font=("Helvetica", 9, "bold"), pady=4, padx=8, anchor="w").pack(fill=tk.X)
 
-        mid = tk.Frame(right, bg=C["bg"])
-        mid.pack(fill=tk.X)
-        self._build_module4(mid)
-        self._build_module5(mid)
-
+        self._build_metrics(right)
+        self._build_module4(right)
+        self._build_module5(right)
         self._build_module6(right)
         self._build_lab(right)
 
@@ -406,19 +419,6 @@ class RoutePlannerCoreUI:
         tk.Frame(c, bg=C["border"], height=1).pack(fill=tk.X, pady=(6, 2))
         pill_btn(c, "✕  Clear Grid", C["m4"],
                  cmd=self._clear, w=388, h=30).pack(pady=2)
-
-        # Stats grid
-        sg = tk.Frame(c, bg=C["card"])
-        sg.pack(fill=tk.X, pady=(6, 0))
-        sg.columnconfigure(0, weight=1)
-        sg.columnconfigure(1, weight=1)
-        sg.columnconfigure(2, weight=1)
-        sg.columnconfigure(3, weight=1)
-
-        self.sv_algo  = mini_stat(sg, "Algorithm",     C["m5"], 0, 0)
-        self.sv_steps = mini_stat(sg, "Path Steps",    C["m1"], 1, 0)
-        self.sv_nodes = mini_stat(sg, "Nodes Expanded",C["m3"], 2, 0)
-        self.sv_time  = mini_stat(sg, "Compute Time",  C["m2"], 3, 0)
 
     # MODULE 3 – CSP ───────────────────────────────────────────────────────────
     def _build_module3(self, parent):
@@ -542,6 +542,89 @@ class RoutePlannerCoreUI:
             "  • How CSP constraints filtered options\n"
             "  • Bayesian uncertainty impact on route cost")
         self.xai_text.config(state=tk.DISABLED)
+        pill_btn(c, "💡 Why This Route? — AI Analysis", C["m6"],
+                 cmd=self._show_xai_details, w=388, h=30).pack(pady=(6, 0))
+
+    def _show_xai_details(self):
+        if not hasattr(self, 'last_path') or not self.last_path:
+            from tkinter import messagebox
+            messagebox.showwarning("Warning", "Please run a search algorithm first to evaluate a route!")
+            return
+
+        pop = tk.Toplevel(self.root)
+        pop.title("Why This Route? — AI Explanation")
+        pop.configure(bg=C["bg"])
+        pop.resizable(False, False)
+        
+        hdr = tk.Frame(pop, bg=C["header"])
+        hdr.pack(fill=tk.X)
+        tk.Label(hdr, text="💡 WHY THIS ROUTE WAS SELECTED", bg=C["header"], fg=C["white"],
+                 font=("Helvetica", 10, "bold"), pady=8, padx=12).pack(anchor="w")
+
+        body = tk.Frame(pop, bg=C["card"], padx=14, pady=12,
+                        highlightbackground=C["border"], highlightthickness=1)
+        body.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+
+        algo = self.last_algo_id
+        cost = self.last_cost
+        steps = len(self.last_path)
+        nodes = len(self.last_explored)
+        elapsed = self.last_elapsed
+        
+        budget_ok = cost <= self.csp.maximum_financial_budget
+        time_ok = (elapsed / 1000) <= self.csp.maximum_time_limit
+        
+        congested_crossed = sum(1 for n in self.last_path if n in self.uncertainty.high_traffic_risk_cells)
+        obstacles_count = len(self.csp.structural_obstacles_set)
+        prob, _, _ = self.uncertainty.evaluate_congestion_probability()
+
+        rows = [
+            ("🔍 1. Search Algorithm:", f"{algo}"),
+            ("💰 2. Calculated Route Cost:", f"₹ {cost:.2f}"),
+            ("🚶 3. Total Path Steps:", f"{steps} cells"),
+            ("📈 4. State Space Explored:", f"{nodes} nodes expanded"),
+            ("⏱ 5. Compute Latency:", f"{elapsed:.1f} ms"),
+            ("⚖ 6. Budget Constraint Check:", "✓ Compliant" if budget_ok else "⚠ Exceeded budget"),
+            ("⏱ 7. Time Constraint Check:", "✓ Compliant" if time_ok else "⚠ Exceeded time limit"),
+            ("🚗 8. Congested Intersections:", f"{congested_crossed} zones crossed"),
+            ("🧱 9. Obstacles Bypassed:", f"{obstacles_count} environmental obstacles avoided"),
+            ("🟡 10. Bayesian Congestion Risk:", f"{prob:.0%}"),
+        ]
+
+        for label, val in rows:
+            f = tk.Frame(body, bg=C["card"])
+            f.pack(fill=tk.X, pady=2)
+            tk.Label(f, text=label, bg=C["card"], fg=C["txt2"], font=("Helvetica", 8, "bold")).pack(side=tk.LEFT)
+            tk.Label(f, text=val, bg=C["card"], fg=C["txt"], font=("Helvetica", 8)).pack(side=tk.RIGHT)
+
+        tk.Frame(body, bg=C["border"], height=1).pack(fill=tk.X, pady=8)
+        summary = self.xai_engine.construct_natural_language_explanation(algo, self.last_path, nodes, cost)
+        tk.Label(body, text="📝 AI Reasoning Summary:", bg=C["card"], fg=C["header"],
+                 font=("Helvetica", 8, "bold")).pack(anchor="w")
+        st = tk.Label(body, text=summary, bg=C["card"], fg=C["txt"], font=("Helvetica", 8),
+                      wraplength=380, justify=tk.LEFT)
+        st.pack(anchor="w", pady=(4, 0))
+
+        pill_btn(body, "Close Window", C["m1"], cmd=pop.destroy, w=380, h=30).pack(pady=(12, 0))
+
+    def _build_help_card(self, parent):
+        c = section_card(parent, "ℹ  Algorithm Guide & Help", C["m1"], pady=4)
+        info_text = (
+            "🔍 Classical Search:\n"
+            "  • BFS: Guarantees shortest path under unit cost.\n"
+            "  • DFS: Explores deeply; paths may be sub-optimal.\n"
+            "  • UCS: Evaluates cost g(n); optimal for variable steps.\n"
+            "  • A*: Explores via f(n) = g(n) + h(n); fastest optimal path.\n\n"
+            "⚖  CSP constraints:\n"
+            "  • Filter paths exceeding budget & time limits.\n\n"
+            "🤖 Minimax Strategy:\n"
+            "  • Simulates dynamic traffic increases to verify durability.\n\n"
+            "🟡 Bayesian Uncertainty:\n"
+            "  • Estimates congestion risk based on storm & road priors."
+        )
+        lbl = tk.Label(c, text=info_text, bg=C["card"], fg=C["txt2"],
+                       font=("Helvetica", 8), justify=tk.LEFT, anchor="w")
+        lbl.pack(fill=tk.X, padx=4, pady=2)
 
     def _build_lab(self, parent):
         c = section_card(parent, "🧪 Algorithm Laboratory  (Performance Comparison)", C["m1"], pady=4)
@@ -932,6 +1015,12 @@ class RoutePlannerCoreUI:
 
         elapsed = (time.perf_counter() - t0) * 1000
         total_cost = self.uncertainty.calculate_accumulated_trajectory_cost(path)
+
+        self.last_algo_id = algo_id
+        self.last_path = path
+        self.last_explored = explored
+        self.last_elapsed = elapsed
+        self.last_cost = total_cost
 
         # ── Module 2 stats ──
         self.sv_algo.config(text=algo_id)
